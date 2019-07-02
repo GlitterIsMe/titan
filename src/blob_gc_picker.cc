@@ -18,6 +18,7 @@ std::unique_ptr<BlobGC> BasicBlobGCPicker::PickBlobGC(
   //  ROCKS_LOG_INFO(db_options_.info_log, "blob file num:%lu gc score:%lu",
   //                 blob_storage->NumBlobFiles(),
   //                 blob_storage->gc_score().size());
+  // 获取所有的gc score，gc score是一个存储file number和对应的gc score的结构
   for (auto& gc_score : blob_storage->gc_score()) {
     auto blob_file = blob_storage->FindFile(gc_score.file_number).lock();
     assert(blob_file);
@@ -33,6 +34,7 @@ std::unique_ptr<BlobGC> BasicBlobGCPicker::PickBlobGC(
     //                   blob_file->marked_for_sample);
 
     if (!CheckBlobFile(blob_file.get())) {
+        // 跳过所有非Normal状态的file，因为他们都不用再GC了
       ROCKS_LOG_INFO(db_options_.info_log, "file number:%lu no need gc",
                      blob_file->file_number());
       continue;
@@ -40,10 +42,12 @@ std::unique_ptr<BlobGC> BasicBlobGCPicker::PickBlobGC(
     blob_files.push_back(blob_file.get());
 
     batch_size += blob_file->file_size();
+    // 限定一次gc只做max gc batch size大小左右的gc，最大1G
     if (batch_size >= cf_options_.max_gc_batch_size) break;
   }
 
   if (blob_files.empty() || batch_size < cf_options_.min_gc_batch_size)
+      // 数据量不足，不触发gc，最小512MB
     return nullptr;
 
   return std::unique_ptr<BlobGC>(

@@ -6,10 +6,12 @@ namespace titandb {
 
 Status BlobStorage::Get(const ReadOptions& options, const BlobIndex& index,
                         BlobRecord* record, PinnableSlice* buffer) {
+    // 查找file
   auto sfile = FindFile(index.file_number).lock();
   if (!sfile)
     return Status::Corruption("Missing blob file: " +
                               std::to_string(index.file_number));
+  // file cache get（这个过程和rocksdb的get很像）
   return file_cache_->Get(options, sfile->file_number(), sfile->file_size(),
                           index.blob_handle, record, buffer);
 }

@@ -63,6 +63,7 @@ Status BlobFileReader::Open(const TitanCFOptions& options,
   }
 
   FixedSlice<BlobFileFooter::kEncodedLength> buffer;
+  // 读footer
   Status s = file->Read(file_size - BlobFileFooter::kEncodedLength,
                         BlobFileFooter::kEncodedLength, &buffer, buffer.get());
   if (!s.ok()) {
@@ -101,6 +102,7 @@ Status BlobFileReader::Get(const ReadOptions& /*options*/,
   std::string cache_key;
   Cache::Handle* cache_handle = nullptr;
   if (cache_) {
+      // 有cache的情况下，这个cache类似block cache
     EncodeBlobCache(&cache_key, cache_prefix_, handle.offset);
     cache_handle = cache_->Lookup(cache_key);
     if (cache_handle) {
@@ -115,12 +117,14 @@ Status BlobFileReader::Get(const ReadOptions& /*options*/,
   RecordTick(stats_, BLOCK_CACHE_MISS);
 
   OwnedSlice blob;
+  // 读数据
   Status s = ReadRecord(handle, record, &blob);
   if (!s.ok()) {
     return s;
   }
 
   if (cache_) {
+      // 有cache的话加cache，否则直接返回
     auto cache_value = new OwnedSlice(std::move(blob));
     auto cache_size = cache_value->size() + sizeof(*cache_value);
     cache_->Insert(cache_key, cache_value, cache_size,
@@ -164,12 +168,18 @@ Status BlobFilePrefetcher::Get(const ReadOptions& options,
   if (handle.offset == last_offset_) {
     last_offset_ = handle.offset + handle.size;
     if (handle.offset + handle.size > readahead_limit_) {
+      // readahead size取handle size和readahead size的最大值
       readahead_size_ = std::max(handle.size, readahead_size_);
+      // 在文件中预取readahead size大小的数据
       reader_->file_->Prefetch(handle.offset, readahead_size_);
+      // 更新readahead limit为当前offset + readshead size
       readahead_limit_ = handle.offset + readahead_size_;
+      // MaxReadaheadSize默认设置为256K，或者readahead size的两倍
+      // 也就是说最高允许预取256K，以此来优化range scan
       readahead_size_ = std::min(kMaxReadaheadSize, readahead_size_ * 2);
     }
   } else {
+      // 初始化为0，读一次之后设置为上一次读的位置
     last_offset_ = handle.offset + handle.size;
     readahead_size_ = 0;
     readahead_limit_ = 0;

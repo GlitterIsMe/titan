@@ -33,7 +33,7 @@ Status BlobFileCache::Get(const ReadOptions& options, uint64_t file_number,
 
   auto reader = reinterpret_cast<BlobFileReader*>(cache_->Value(cache_handle));
   s = reader->Get(options, handle, record, buffer);
-  cache_->Release(cache_handle);
+  cache_->Release(cache_handle);// 为什么要release
   return s;
 }
 

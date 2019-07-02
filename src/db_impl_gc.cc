@@ -72,8 +72,10 @@ Status TitanDBImpl::BackgroundGC(LogBuffer* log_buffer) {
 
     if (bs) {
       const auto& cf_options = bs->cf_options();
+      // 构造一个BlobGCPicker
       std::shared_ptr<BlobGCPicker> blob_gc_picker =
           std::make_shared<BasicBlobGCPicker>(db_options_, cf_options);
+      // 选择要GC的file
       blob_gc = blob_gc_picker->PickBlobGC(bs);
 
       if (blob_gc) {

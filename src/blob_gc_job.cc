@@ -108,12 +108,14 @@ BlobGCJob::~BlobGCJob() {
 Status BlobGCJob::Prepare() { return Status::OK(); }
 
 Status BlobGCJob::Run() {
+    // 取样？
   Status s = SampleCandidateFiles();
   if (!s.ok()) {
     return s;
   }
 
-  std::string tmp;
+  // 什么鬼命名？
+  std::string tmp;// 记录所有的input file的file number
   for (const auto& f : blob_gc_->inputs()) {
     if (!tmp.empty()) {
       tmp.append(" ");
@@ -121,7 +123,7 @@ Status BlobGCJob::Run() {
     tmp.append(std::to_string(f->file_number()));
   }
 
-  std::string tmp2;
+  std::string tmp2;// 记录所有取样之后的input的file number
   for (const auto& f : blob_gc_->sampled_inputs()) {
     if (!tmp2.empty()) {
       tmp2.append(" ");
@@ -144,11 +146,13 @@ Status BlobGCJob::SampleCandidateFiles() {
   std::vector<BlobFileMeta*> result;
   for (const auto& file : blob_gc_->inputs()) {
     bool selected = false;
+    // 对每一个file调用DoSample
     Status s = DoSample(file, &selected);
     if (!s.ok()) {
       return s;
     }
     if (selected) {
+        // 如果选中则加入一个列表
       result.push_back(file);
     }
   }
@@ -233,6 +237,7 @@ Status BlobGCJob::DoRunGC() {
   Status s;
 
   std::unique_ptr<BlobFileMergeIterator> gc_iter;
+  // 构造iterator
   s = BuildIterator(&gc_iter);
   if (!s.ok()) return s;
   if (!gc_iter) return Status::Aborted("Build iterator for gc failed");
@@ -271,7 +276,9 @@ Status BlobGCJob::DoRunGC() {
     metrics_.blob_db_bytes_read += blob_index.blob_handle.size;
 
     if (!last_key.empty() && !gc_iter->key().compare(last_key)) {
+        // 有last key 并且 last key与当前的key相等
       if (last_key_valid) {
+          // 如果last key有效，则跳过当前key
         continue;
       }
     } else {
@@ -285,11 +292,12 @@ Status BlobGCJob::DoRunGC() {
       break;
     }
     if (discardable) {
+        // 当前这个kv是可以丢掉的
       metrics_.blob_db_gc_num_keys_overwritten++;
       metrics_.blob_db_gc_bytes_overwritten += blob_index.blob_handle.size;
       continue;
     }
-
+    // 到这里说明这个key是有效的，更新last key valid为true
     last_key_valid = true;
 
     // Rewrite entry to new blob file
@@ -398,6 +406,8 @@ Status BlobGCJob::DiscardEntry(const Slice& key, const BlobIndex& blob_index,
   if (s.IsNotFound() || !is_blob_index) {
     // Either the key is deleted or updated with a newer version which is
     // inlined in LSM.
+    // key在LSM中没找到或者key读出来的不是一个blob index
+    // 说明现在在blob中的file是可以被删除的
     *discardable = true;
     return Status::OK();
   }
@@ -408,6 +418,8 @@ Status BlobGCJob::DiscardEntry(const Slice& key, const BlobIndex& blob_index,
     return s;
   }
 
+
+  // 解析blob index，如果相等则说明key有效，如果不等说明key被更新到了一个新的位置
   *discardable = !(blob_index == other_blob_index);
   return Status::OK();
 }
@@ -479,7 +491,7 @@ Status BlobGCJob::RewriteValidKeyToLSM() {
 
   WriteOptions wo;
   wo.low_pri = true;
-  wo.ignore_missing_column_families = true;
+  wo.ignore_missing_column_families = true;// 为什么要this->
   for (auto& write_batch : this->rewrite_batches_) {
     if (blob_gc_->GetColumnFamilyData()->IsDropped()) {
       s = Status::Aborted("Column family drop");
@@ -533,6 +545,7 @@ Status BlobGCJob::DeleteInputBlobFiles() {
     metrics_.blob_db_gc_num_files++;
     edit.DeleteBlobFile(file->file_number(), obsolete_sequence);
   }
+  // 此处LogAndApply，包括增删文件
   s = version_set_->LogAndApply(edit);
   // TODO(@DorianZheng) Purge pending outputs
   // base_db_->pending_outputs_.erase(handle->GetNumber());

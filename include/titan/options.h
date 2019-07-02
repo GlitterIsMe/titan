@@ -14,21 +14,25 @@ struct TitanDBOptions : public DBOptions {
   // the base DB.
   //
   // Default: {dbname}/titandb
+  // 用于存储titan的专有数据的路径
   std::string dirname;
 
   // Disable background GC
   //
   // Default: false
+  // 禁用后台GC
   bool disable_background_gc{false};
 
   // Max background GC thread
   //
   // Default: 1
+  // 后台GC的线程数
   int32_t max_background_gc{1};
 
   // How often to schedule delete obsolete blob files periods
   //
   // Default: 10
+  // 删除过期文件的线程数
   uint32_t purge_obsolete_files_period{10};  // 10s
 
   TitanDBOptions() = default;

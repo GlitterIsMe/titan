@@ -39,6 +39,7 @@ class TitanDBImpl::FileManager : public BlobFileManager {
     handle->reset(new FileHandle(number, name, std::move(file)));
     {
       MutexLock l(&db_->mutex_);
+      // new file之后就将这个file添加到了pending_outputs里
       db_->pending_outputs_.insert(number);
     }
     return s;
@@ -407,9 +408,11 @@ Status TitanDBImpl::DestroyColumnFamilyHandle(
 }
 
 Status TitanDBImpl::CompactFiles(
-    const CompactionOptions& compact_options, ColumnFamilyHandle* column_family,
+    const CompactionOptions& compact_options,
+    ColumnFamilyHandle* column_family,
     const std::vector<std::string>& input_file_names, const int output_level,
-    const int output_path_id, std::vector<std::string>* const output_file_names,
+    const int output_path_id,
+    std::vector<std::string>* const output_file_names,
     CompactionJobInfo* compaction_job_info) {
   std::unique_ptr<CompactionJobInfo> compaction_job_info_ptr;
   if (compaction_job_info == nullptr) {
@@ -429,10 +432,12 @@ Status TitanDBImpl::CompactFiles(
 Status TitanDBImpl::Get(const ReadOptions& options, ColumnFamilyHandle* handle,
                         const Slice& key, PinnableSlice* value) {
   if (options.snapshot) {
+      // 如果有snapshot则直接调用
     return GetImpl(options, handle, key, value);
   }
+  // 没有snapshot则首先需要构造一个snapshot
   ReadOptions ro(options);
-  ManagedSnapshot snapshot(this);
+  ManagedSnapshot snapshot(this);// ManagedSnapshot包含一个DB指针和一个构造时的DB snapshot
   ro.snapshot = snapshot.snapshot();
   return GetImpl(ro, handle, key, value);
 }
@@ -444,6 +449,7 @@ Status TitanDBImpl::GetImpl(const ReadOptions& options,
   bool is_blob_index = false;
   s = db_impl_->GetImpl(options, handle, key, value, nullptr /*value_found*/,
                         nullptr /*read_callback*/, &is_blob_index);
+  // 先从LSM-DB中Get，如果不是blob index则直接返回
   if (!s.ok() || !is_blob_index) return s;
 
   StopWatch get_sw(env_, statistics(stats_.get()), BLOB_DB_GET_MICROS);
@@ -457,12 +463,14 @@ Status TitanDBImpl::GetImpl(const ReadOptions& options,
   PinnableSlice buffer;
 
   mutex_.Lock();
+  // 这是干啥
   auto storage = vset_->GetBlobStorage(handle->GetID()).lock();
   mutex_.Unlock();
 
   {
     StopWatch read_sw(env_, statistics(stats_.get()),
                       BLOB_DB_BLOB_FILE_READ_MICROS);
+    // 从storage中get数据出来，Get的逻辑也主要在这里面
     s = storage->Get(options, index, &record, &buffer);
     RecordTick(statistics(stats_.get()), BLOB_DB_NUM_KEYS_READ);
     RecordTick(statistics(stats_.get()), BLOB_DB_BLOB_FILE_BYTES_READ,
@@ -669,6 +677,7 @@ void TitanDBImpl::OnFlushCompleted(const FlushJobInfo& flush_job_info) {
   if (ucp_iter == tps.user_collected_properties.end()) {
     return;
   }
+  // blob file size是一个blob file到file size的映射
   std::map<uint64_t, uint64_t> blob_files_size;
   Slice src{ucp_iter->second};
   if (!BlobFileSizeCollector::Decode(&src, &blob_files_size)) {
@@ -698,7 +707,9 @@ void TitanDBImpl::OnFlushCompleted(const FlushJobInfo& flush_job_info) {
       return;
     }
     for (const auto& file_number : outputs) {
+        // 在storage中查找所有的output
       auto file = blob_storage->FindFile(file_number).lock();
+      // 关于GC，CG的output跟flush有什么关系
       // This file maybe output of a gc job, and it's been gced out.
       if (!file) {
         continue;
@@ -717,9 +728,12 @@ void TitanDBImpl::OnCompactionCompleted(
   std::map<uint64_t, int64_t> blob_files_size;
   std::set<uint64_t> outputs;
   std::set<uint64_t> inputs;
-  auto calc_bfs = [&](const std::vector<std::string>& files, int coefficient,
-                      bool output) {
-    for (const auto& file : files) {
+  // 定义一个closure
+  auto calc_bfs = [&](  const std::vector<std::string>& files,// 输入文件（此处存储的是文件名）
+                        int coefficient, //input为负，output为正
+                        bool output) {// 是否是output file
+    for (const auto& file : files) {// 遍历每个file
+        // table properties是一个file name到TableProperty的映射
       auto tp_iter = compaction_job_info.table_properties.find(file);
       if (tp_iter == compaction_job_info.table_properties.end()) {
         if (output) {
@@ -736,7 +750,7 @@ void TitanDBImpl::OnCompactionCompleted(
       if (ucp_iter == tp_iter->second->user_collected_properties.end()) {
         continue;
       }
-      std::map<uint64_t, uint64_t> input_blob_files_size;
+      std::map<uint64_t, uint64_t> input_blob_files_size;// file和file size的映射
       std::string s = ucp_iter->second;
       Slice slice{s};
       if (!BlobFileSizeCollector::Decode(&slice, &input_blob_files_size)) {
@@ -750,6 +764,7 @@ void TitanDBImpl::OnCompactionCompleted(
         continue;
       }
       for (const auto& input_bfs : input_blob_files_size) {
+          // 获取所有的blob file size
         if (output) {
           if (inputs.find(input_bfs.first) == inputs.end()) {
             outputs.insert(input_bfs.first);
@@ -759,6 +774,7 @@ void TitanDBImpl::OnCompactionCompleted(
         }
         auto bfs_iter = blob_files_size.find(input_bfs.first);
         if (bfs_iter == blob_files_size.end()) {
+            // input的时候coefficient为-1，此处减，否则为加
           blob_files_size[input_bfs.first] = coefficient * input_bfs.second;
         } else {
           bfs_iter->second += coefficient * input_bfs.second;
@@ -809,12 +825,13 @@ void TitanDBImpl::OnCompactionCompleted(
       if (!file->is_obsolete()) {
         delta += -bfs.second;
       }
+      // 更新discardable size
       file->AddDiscardableSize(static_cast<uint64_t>(-bfs.second));
     }
     SubStats(stats_.get(), compaction_job_info.cf_id,
              TitanInternalStats::LIVE_BLOB_SIZE, delta);
     bs->ComputeGCScore();
-
+    // ？为什么直接就添加GC queue了
     AddToGCQueue(compaction_job_info.cf_id);
     MaybeScheduleGC();
   }
