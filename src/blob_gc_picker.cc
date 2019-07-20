@@ -12,7 +12,7 @@ BasicBlobGCPicker::~BasicBlobGCPicker() {}
 std::unique_ptr<BlobGC> BasicBlobGCPicker::PickBlobGC(
     BlobStorage* blob_storage) {
   Status s;
-  std::vector<BlobFileMeta*> blob_files;
+  std::vector<shared_ptr<BlobFileMeta>> blob_files;
 
   uint64_t batch_size = 0;
   //  ROCKS_LOG_INFO(db_options_.info_log, "blob file num:%lu gc score:%lu",
@@ -37,7 +37,7 @@ std::unique_ptr<BlobGC> BasicBlobGCPicker::PickBlobGC(
                      blob_file->file_number());
       continue;
     }
-    blob_files.push_back(blob_file.get());
+    blob_files.push_back(blob_file);
 
     batch_size += blob_file->file_size();
     if (batch_size >= cf_options_.max_gc_batch_size) break;

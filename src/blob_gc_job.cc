@@ -147,10 +147,10 @@ Status BlobGCJob::Run() {
 }
 
 Status BlobGCJob::SampleCandidateFiles() {
-  std::vector<BlobFileMeta*> result;
+  std::vector<shared_ptr<BlobFileMeta>> result;
   for (const auto& file : blob_gc_->inputs()) {
     bool selected = false;
-    Status s = DoSample(file, &selected);
+    Status s = DoSample(file.get(), &selected);
     if (!s.ok()) {
       return s;
     }
@@ -478,7 +478,7 @@ Status BlobGCJob::InstallOutputBlobFiles() {
       }
       tmp.append(std::to_string(file->file_number()));
 
-      blob_gc_->AddOutputFile(file.get());
+      blob_gc_->AddOutputFile(file);
       files.emplace_back(std::make_pair(file, std::move(builder.first)));
     }
     ROCKS_LOG_BUFFER(log_buffer_, "[%s] output[%s]",

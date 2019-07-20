@@ -3,7 +3,7 @@
 namespace rocksdb {
 namespace titandb {
 
-BlobGC::BlobGC(std::vector<BlobFileMeta*>&& blob_files,
+BlobGC::BlobGC(std::vector<shared_ptr<BlobFileMeta>>&& blob_files,
                TitanCFOptions&& _titan_cf_options)
     : inputs_(std::move(blob_files)),
       titan_cf_options_(std::move(_titan_cf_options)) {
@@ -19,7 +19,7 @@ ColumnFamilyData* BlobGC::GetColumnFamilyData() {
   return cfhi->cfd();
 }
 
-void BlobGC::AddOutputFile(BlobFileMeta* blob_file) {
+void BlobGC::AddOutputFile(shared_ptr<BlobFileMeta> blob_file) {
   blob_file->FileStateTransit(BlobFileMeta::FileEvent::kGCOutput);
   outputs_.push_back(blob_file);
 }
