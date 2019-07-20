@@ -27,7 +27,9 @@ class BlobGC {
     sampled_inputs_ = std::move(files);
   }
 
-  const std::vector<shared_ptr<BlobFileMeta>>& sampled_inputs() { return sampled_inputs_; }
+  const std::vector<shared_ptr<BlobFileMeta>>& sampled_inputs() {
+    return sampled_inputs_;
+  }
 
   const TitanCFOptions& titan_cf_options() { return titan_cf_options_; }
 
