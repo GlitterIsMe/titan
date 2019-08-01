@@ -67,6 +67,8 @@ Status TitanDBImpl::BackgroundGC(LogBuffer* log_buffer) {
   Status s;
   if (!gc_queue_.empty()) {
     uint32_t column_family_id = PopFirstFromGCQueue();
+    SubStats(stats_.get(), column_family_id, TitanInternalStats::NUM_UNSCHEDULED_GC, 1);
+    AddStats(stats_.get(), column_family_id, TitanInternalStats::NUM_SCHEDULED_GC, 1);
     auto bs = vset_->GetBlobStorage(column_family_id).lock().get();
 
     if (bs) {
@@ -112,7 +114,7 @@ Status TitanDBImpl::BackgroundGC(LogBuffer* log_buffer) {
       AddToGCQueue(blob_gc->column_family_handle()->GetID());
     }
   }
-
+  SubStats(stats_.get(), blob_gc->column_family_handle()->GetID(), TitanInternalStats::NUM_SCHEDULED_GC, 1);
   if (s.ok()) {
     // Done
   } else {

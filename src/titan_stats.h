@@ -22,6 +22,8 @@ class TitanInternalStats {
     NUM_OBSOLETE_BLOB_FILE,
     LIVE_BLOB_FILE_SIZE,
     OBSOLETE_BLOB_FILE_SIZE,
+    NUM_UNSCHEDULED_GC,
+    NUM_SCHEDULED_GC,
     INTERNAL_STATS_ENUM_MAX,
   };
   void Clear() {

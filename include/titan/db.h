@@ -158,6 +158,10 @@ class TitanDB : public StackableDB {
     //  "rocksdb.titandb.obsolete-blob-file-size" - returns size of obsolete
     //      blob files.
     static const std::string kObsoleteBlobFileSize;
+
+    static const std::string kNumUnScheduledGC;
+
+    static const std::string kNumScheduledGC;
   };
 
   bool GetProperty(ColumnFamilyHandle* column_family, const Slice& property,

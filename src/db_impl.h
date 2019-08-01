@@ -151,6 +151,7 @@ class TitanDBImpl : public TitanDB {
   void AddToGCQueue(uint32_t column_family_id) {
     mutex_.AssertHeld();
     unscheduled_gc_++;
+    AddStats(stats_.get(), column_family_id, TitanInternalStats::NUM_UNSCHEDULED_GC, 1);
     gc_queue_.push_back(column_family_id);
   }
 

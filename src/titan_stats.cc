@@ -14,6 +14,8 @@ static const std::string num_live_blob_file = "num-live-blob-file";
 static const std::string num_obsolete_blob_file = "num-obsolete-blob-file";
 static const std::string live_blob_file_size = "live-blob-file-size";
 static const std::string obsolete_blob_file_size = "obsolete-blob-file-size";
+static const std::string num_unscheduled_gc = "num-unscheduled-gc";
+static const std::string num_scheduled_gc = "num-scheduled-gc";
 
 const std::string TitanDB::Properties::kLiveBlobSize =
     titandb_prefix + live_blob_size;
@@ -25,6 +27,11 @@ const std::string TitanDB::Properties::kLiveBlobFileSize =
     titandb_prefix + live_blob_file_size;
 const std::string TitanDB::Properties::kObsoleteBlobFileSize =
     titandb_prefix + obsolete_blob_file_size;
+const std::string TitanDB::Properties::kNumUnScheduledGC =
+    titandb_prefix + num_unscheduled_gc;
+const std::string TitanDB::Properties::kNumScheduledGC =
+    titandb_prefix + num_scheduled_gc;
+
 
 const std::unordered_map<std::string, TitanInternalStats::StatsType>
     TitanInternalStats::stats_type_string_map = {
@@ -38,6 +45,10 @@ const std::unordered_map<std::string, TitanInternalStats::StatsType>
          TitanInternalStats::LIVE_BLOB_FILE_SIZE},
         {TitanDB::Properties::kObsoleteBlobFileSize,
          TitanInternalStats::OBSOLETE_BLOB_FILE_SIZE},
+        {TitanDB::Properties::kNumUnScheduledGC,
+         TitanInternalStats::NUM_UNSCHEDULED_GC},
+        {TitanDB::Properties::kNumScheduledGC,
+         TitanInternalStats::NUM_SCHEDULED_GC}
 };
 
 }  // namespace titandb
